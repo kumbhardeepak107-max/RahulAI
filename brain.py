@@ -3,7 +3,7 @@ from memory import save_memory, get_memory
 import os
 
 
-# Gemini API key environment variable se
+# Gemini API key Render ke Environment Variables se aayegi
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
@@ -12,15 +12,28 @@ if not API_KEY:
 
 client = genai.Client(api_key=API_KEY)
 
-# Gemini model
-MODEL = "gemini-3.6-flash"
+MODEL = "gemini-2.5-flash"
 
 
 def get_answer(message):
+
     message_lower = message.lower().strip()
 
     # -------------------------
-    # Naam save karna
+    # Rahul AI ka naam
+    # -------------------------
+    if message_lower in [
+        "tumhara naam kya hai",
+        "tumhara naam kya he",
+        "aapka naam kya hai",
+        "what is your name",
+        "who are you"
+    ]:
+        return "Mera naam Rahul AI hai. Main tumhara AI assistant hoon. 😊"
+
+
+    # -------------------------
+    # User ka naam save karna
     # -------------------------
     if message_lower.startswith("mera naam "):
 
@@ -30,13 +43,13 @@ def get_answer(message):
             save_memory("name", name)
 
             return (
-                f"Theek hai, main yaad rakhunga "
-                f"ki tumhara naam {name} hai."
+                f"Theek hai dost, main yaad rakhunga "
+                f"ki tumhara naam {name} hai. 😊"
             )
 
 
     # -------------------------
-    # Naam puchna
+    # User ka naam batana
     # -------------------------
     if message_lower in [
         "mera naam kya hai",
@@ -47,54 +60,77 @@ def get_answer(message):
         name = get_memory("name")
 
         if name:
-            return f"Tumhara naam {name} hai."
+            return f"Tumhara naam {name} hai. 😊"
 
-        return "Mujhe abhi tumhara naam yaad nahi hai."
+        return "Dost, mujhe abhi tumhara naam yaad nahi hai."
 
 
     # -------------------------
     # Gemini AI
     # -------------------------
+    prompt = f"""
+Tum Rahul AI ho.
+
+Tumhara naam Rahul AI hai.
+Tum ek friendly AI assistant ho.
+User se natural Hindi/Hinglish me baat karo.
+User ko zarurat ke hisaab se simple language me samjhao.
+Agar user tumhara naam puche, bolo ki tumhara naam Rahul AI hai.
+Apne aap ko Google Gemini mat bolo.
+
+User ka message:
+{message}
+"""
+
+
     try:
 
         response = client.models.generate_content(
             model=MODEL,
-            contents=message
+            contents=prompt
         )
 
         if response.text:
             return response.text
 
-        return "AI ne koi answer nahi diya."
+        return "Dost, AI ne koi answer nahi diya."
 
 
     except Exception as e:
 
         print("Gemini Error:", e)
 
-        return f"AI Error: {str(e)}"
+        return "AI Error: " + str(e)
 
 
-# -------------------------
-# Image question
-# -------------------------
 def image_answer(message):
+
+    prompt = f"""
+Tum Rahul AI ho.
+
+User ne ek photo ke baare me question poocha hai.
+Photo ko samajhkar simple Hindi/Hinglish me answer do.
+
+User ka question:
+{message}
+"""
+
 
     try:
 
         response = client.models.generate_content(
             model=MODEL,
-            contents=message
+            contents=prompt
         )
 
         if response.text:
             return response.text
 
-        return "AI ne photo ka koi answer nahi diya."
+        return "Dost, photo ke baare me answer nahi mil saka."
 
 
     except Exception as e:
 
-        print("Image AI Error:", e)
+        print("Gemini Image Error:", e)
 
-        return f"Image AI Error: {str(e)}"
+        return "Image AI Error: " + str(e)
