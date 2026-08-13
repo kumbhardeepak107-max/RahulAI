@@ -107,4 +107,4 @@ User ka question:
 
     except Exception as e:
         print("Gemini Image Error:", e)
-        return "Image AI Error: " + str(e)
+        return "Image AI Error: " + str(e)      
