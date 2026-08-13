@@ -15,7 +15,7 @@ MODEL = "gemini-2.5-flash"
 
 def get_answer(message):
     message = message.strip()
-    message_lower = message.lower()
+    message_lower = message.lower().strip(" ?!.")
 
     # Rahul AI ka naam
     if message_lower in [
