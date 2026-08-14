@@ -11,7 +11,7 @@ if not API_KEY:
 
 client = genai.Client(api_key=API_KEY)
 
-MODEL = "gemini-3.6-flash"
+MODEL = "gemini-3.7-flash"
 
 
 def get_answer(message):
