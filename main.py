@@ -1,12 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from google import genai
-from memory import save_memory, get_memory
+from brain import get_answer
 import os
 
 app = FastAPI()
 
-# Gemini API key
-# Yahan apni Gemini API key rakho.
+
+# Gemini API key Render Environment Variables se
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
@@ -14,8 +14,7 @@ if not API_KEY:
 
 client = genai.Client(api_key=API_KEY)
 
-# Current Gemini model
-MODEL = "gemini-3.6-flash"
+MODEL = "gemini-2.5-flash"
 
 
 @app.get("/")
@@ -35,51 +34,18 @@ async def chat(data: dict):
             "reply": "Dost, apna question likho."
         }
 
-    # Naam yaad rakhna
-    lower = message.lower()
-
-    if lower.startswith("mera naam "):
-
-        name = message[len("mera naam "):].strip()
-
-        if name:
-            save_memory("name", name)
-
-            return {
-                "reply": f"Theek hai, main yaad rakhunga ki tumhara naam {name} hai."
-            }
-
-    # Naam yaad hai?
-    if lower in [
-        "mera naam kya hai",
-        "mera naam kya he",
-        "what is my name"
-    ]:
-
-        name = get_memory("name")
-
-        if name:
-            return {
-                "reply": f"Tumhara naam {name} hai."
-            }
-
-        return {
-            "reply": "Mujhe abhi tumhara naam yaad nahi hai."
-        }
-
-    # Gemini AI
     try:
 
-        response = client.models.generate_content(
-            model=MODEL,
-            contents=message
-        )
+        # Brain.py message ko handle karega
+        answer = get_answer(message)
 
         return {
-            "reply": response.text
+            "reply": answer
         }
 
     except Exception as e:
+
+        print("Chat Error:", e)
 
         return {
             "reply": f"AI Error: {str(e)}"
@@ -96,7 +62,6 @@ async def chat_image(
 
         image_bytes = await image.read()
 
-        # Gemini ko image + question bhejna
         response = client.models.generate_content(
             model=MODEL,
             contents=[
@@ -115,6 +80,8 @@ async def chat_image(
         }
 
     except Exception as e:
+
+        print("Image AI Error:", e)
 
         return {
             "reply": f"Image AI Error: {str(e)}"
