@@ -18,7 +18,7 @@ client = genai.Client(api_key=API_KEY)
 
 # Agar tumhare account me ye model available nahi hai,
 # apne available Gemini Flash model ka naam yahan rakho.
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.6-flash"
 
 
 # =========================================================
