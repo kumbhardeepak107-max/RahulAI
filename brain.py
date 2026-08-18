@@ -1,11 +1,14 @@
 from google import genai
-from memory import save_memory, get_memory
+from memory import save_memory, get_memory, get_all_memory
 import os
 import time
 import random
 
 
-# Gemini API key Render Environment Variables se aayegi
+# =========================================================
+# GEMINI SETUP
+# =========================================================
+
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not API_KEY:
@@ -13,16 +16,20 @@ if not API_KEY:
 
 client = genai.Client(api_key=API_KEY)
 
-MODEL = "gemini-3.7-flash"
+# Agar tumhare account me ye model available nahi hai,
+# apne available Gemini Flash model ka naam yahan rakho.
+MODEL = "gemini-2.5-flash"
 
 
-def generate_with_retry(contents):
-    """
-    Gemini request ko temporary 503/429/5xx error
-    par maximum 3 attempts tak retry karta hai.
-    """
+# =========================================================
+# GEMINI RETRY SYSTEM
+# =========================================================
 
-    for attempt in range(3):
+def generate_with_retry(contents, max_attempts=3):
+
+    last_error = None
+
+    for attempt in range(max_attempts):
 
         try:
 
@@ -35,46 +42,176 @@ def generate_with_retry(contents):
 
         except Exception as e:
 
-            error_text = str(e)
+            last_error = e
+            error_text = str(e).upper()
 
-            is_temporary_error = (
+            temporary_error = (
                 "503" in error_text
                 or "429" in error_text
-                or "UNAVAILABLE" in error_text
-                or "RESOURCE_EXHAUSTED" in error_text
                 or "500" in error_text
                 or "502" in error_text
                 or "504" in error_text
+                or "UNAVAILABLE" in error_text
+                or "RESOURCE_EXHAUSTED" in error_text
+                or "TIMEOUT" in error_text
             )
 
-            if not is_temporary_error:
+            if not temporary_error:
                 raise e
 
-            # Last attempt par error wapas bhejo
-            if attempt == 2:
+            if attempt == max_attempts - 1:
                 raise e
 
-            # 2s, 4s ke aas-paas wait + random jitter
-            wait_time = (2 ** attempt) + random.uniform(0, 1)
+            wait_time = (2 ** attempt) + random.uniform(0.5, 1.5)
 
             print(
                 f"Gemini temporary error. "
-                f"Retry {attempt + 1}/2 after {wait_time:.1f}s"
+                f"Retry {attempt + 1}/{max_attempts - 1} "
+                f"after {wait_time:.1f}s"
             )
 
             time.sleep(wait_time)
 
+    raise last_error
+
+
+# =========================================================
+# MEMORY HELPERS
+# =========================================================
+
+def get_memory_context():
+
+    try:
+
+        memory = get_all_memory()
+
+        if not memory:
+            return "Abhi user ke baare mein koi extra memory nahi hai."
+
+        lines = []
+
+        for key, value in memory.items():
+
+            lines.append(
+                f"{key}: {value}"
+            )
+
+        return "\n".join(lines)
+
+    except Exception as e:
+
+        print("Memory read error:", e)
+
+        return "Memory available nahi hai."
+
+
+# =========================================================
+# SIMPLE MEMORY DETECTION
+# =========================================================
+
+def remember_user_information(message):
+
+    text = message.strip()
+    lower = text.lower()
+
+    # -----------------------------------------
+    # NAME
+    # -----------------------------------------
+
+    if lower.startswith("mera naam "):
+
+        name = text[len("mera naam "):].strip()
+
+        if name.lower().endswith(" hai"):
+            name = name[:-4].strip()
+
+        if name:
+
+            save_memory("name", name)
+
+            return (
+                f"Theek hai dost, main yaad rakhunga "
+                f"ki tumhara naam {name} hai."
+            )
+
+    # -----------------------------------------
+    # FAVOURITE
+    # -----------------------------------------
+
+    favourite_prefixes = [
+        "mujhe ",
+        "mera favourite ",
+        "meri favourite "
+    ]
+
+    # Example:
+    # Mujhe cricket pasand hai
+    if lower.startswith("mujhe ") and " pasand" in lower:
+
+        try:
+
+            value = text[6:]
+
+            if " pasand" in value.lower():
+
+                value = value.lower().split(
+                    " pasand"
+                )[0].strip()
+
+                if value:
+
+                    save_memory(
+                        "preference",
+                        value
+                    )
+
+                    return (
+                        f"Theek hai dost ❤️ "
+                        f"main yaad rakhunga ki tumhe "
+                        f"{value} pasand hai."
+                    )
+
+        except Exception as e:
+
+            print("Preference memory error:", e)
+
+    return None
+
+
+# =========================================================
+# GET USER NAME
+# =========================================================
+
+def get_user_name():
+
+    try:
+
+        return get_memory("name")
+
+    except Exception:
+
+        return None
+
+
+# =========================================================
+# MAIN TEXT AI
+# =========================================================
 
 def get_answer(message):
 
     message = message.strip()
 
+    if not message:
+
+        return "Dost, apna question likho."
+
+
     message_lower = message.lower().strip(" ?!.")
 
 
-    # ==========================================
-    # RAHUL AI KA NAAM
-    # ==========================================
+    # =====================================================
+    # RAHUL AI NAME
+    # =====================================================
 
     if message_lower in [
         "tumhara naam kya hai",
@@ -87,14 +224,14 @@ def get_answer(message):
     ]:
 
         return (
-            "Mera naam Rahul AI hai. "
-            "Main tumhara AI assistant hoon."
+            "Mera naam Rahul AI hai 🤖. "
+            "Main tumhara friendly AI assistant hoon."
         )
 
 
-    # ==========================================
-    # USER KA NAAM PUCHNA
-    # ==========================================
+    # =====================================================
+    # USER NAME
+    # =====================================================
 
     if message_lower in [
         "mera naam kya hai",
@@ -102,54 +239,84 @@ def get_answer(message):
         "what is my name"
     ]:
 
-        name = get_memory("name")
+        name = get_user_name()
 
         if name:
 
-            return f"Tumhara naam {name} hai."
+            return f"Tumhara naam {name} hai ❤️."
 
-        return "Dost, mujhe abhi tumhara naam yaad nahi hai."
-
-
-    # ==========================================
-    # USER KA NAAM SAVE KARNA
-    # ==========================================
-
-    if message_lower.startswith("mera naam "):
-
-        name = message[len("mera naam "):].strip()
-
-        # Agar naam ke end me "hai" ho
-        if name.lower().endswith(" hai"):
-
-            name = name[:-4].strip()
-
-        if name:
-
-            save_memory("name", name)
-
-            return (
-                f"Theek hai dost, main yaad rakhunga "
-                f"ki tumhara naam {name} hai."
-            )
+        return (
+            "Dost, mujhe abhi tumhara naam yaad nahi hai."
+        )
 
 
-    # ==========================================
-    # GEMINI AI CHAT
-    # ==========================================
+    # =====================================================
+    # USER INFORMATION REMEMBER
+    # =====================================================
+
+    memory_reply = remember_user_information(message)
+
+    if memory_reply:
+
+        return memory_reply
+
+
+    # =====================================================
+    # MEMORY QUESTION
+    # =====================================================
+
+    if message_lower in [
+        "tumhe mere baare mein kya yaad hai",
+        "mujhe mere baare mein kya yaad hai",
+        "what do you remember about me"
+    ]:
+
+        memory_context = get_memory_context()
+
+        return (
+            "Dost, mujhe tumhare baare mein ye yaad hai:\n\n"
+            + memory_context
+        )
+
+
+    # =====================================================
+    # GEMINI AI
+    # =====================================================
 
     try:
 
+        memory_context = get_memory_context()
+
         prompt = f"""
-Tum Rahul AI ho.
+Tum Rahul AI ho 🤖.
 
 Tumhara naam Rahul AI hai.
-Tum ek friendly AI assistant ho.
 
-User se natural Hindi/Hinglish me baat karo.
-User ko simple language me samjhao.
+Tum ek friendly, helpful aur intelligent AI assistant ho.
+
+User se natural Hindi/Hinglish mein baat karo.
+
+User ko simple language mein samjhao.
+
+Agar user Hindi mein baat kare to Hindi/Hinglish mein answer do.
+
+Agar user English mein baat kare to English ya simple Hinglish mein answer do.
+
 Apne aap ko Google Gemini mat bolo.
-Agar user tumhara naam puche to Rahul AI bolo.
+
+Kabhi bhi ye mat bolo ki tum Google Gemini ho.
+
+User ki saved memory ko context ke roop mein use karo.
+
+User memory:
+{memory_context}
+
+Important:
+- Agar memory mein user ka naam hai, zarurat ke hisaab se naam use kar sakte ho.
+- Memory ko bina zarurat baar-baar repeat mat karo.
+- Agar memory mein answer nahi hai to guess mat karo.
+- Friendly aur natural raho.
+- Dangerous ya unsafe requests mein safe response do.
 
 User ka message:
 {message}
@@ -159,34 +326,90 @@ User ka message:
 
         if response and response.text:
 
-            return response.text
+            return response.text.strip()
 
-        return "Dost, AI ne koi answer nahi diya."
+        return (
+            "Dost, AI ne abhi koi answer nahi diya."
+        )
 
 
     except Exception as e:
 
         print("Gemini Error:", e)
 
-        return f"AI Error: {str(e)}"
+        error_text = str(e)
 
+        upper_error = error_text.upper()
+
+        if (
+            "503" in upper_error
+            or "UNAVAILABLE" in upper_error
+        ):
+
+            return (
+                "Dost, AI server abhi busy hai 😅. "
+                "Thodi der baad dobara try karo."
+            )
+
+        if (
+            "429" in upper_error
+            or "RESOURCE_EXHAUSTED" in upper_error
+        ):
+
+            return (
+                "Dost, AI ki request limit abhi "
+                "temporarily full hai. Thodi der baad "
+                "dobara try karo."
+            )
+
+        if "TIMEOUT" in upper_error:
+
+            return (
+                "Dost, server se response aane mein "
+                "zyada time lag gaya. Dobara try karo."
+            )
+
+        return f"AI Error: {error_text}"
+
+
+# =========================================================
+# IMAGE AI
+# =========================================================
 
 def image_answer(message, image_bytes, mime_type):
 
     try:
 
+        user_question = (
+            message.strip()
+            if message and message.strip()
+            else "Is photo ko simple Hindi mein describe karo."
+        )
+
+        memory_context = get_memory_context()
+
         prompt = f"""
-Tum Rahul AI ho.
+Tum Rahul AI ho 🤖.
 
 Tumhara naam Rahul AI hai.
+
 Tum ek friendly AI assistant ho.
 
 User ne ek photo bheji hai.
-Photo ko samajhkar simple Hindi/Hinglish me answer do.
+
+Photo ko carefully samjho aur user ke question ka
+simple Hindi/Hinglish mein answer do.
+
+Agar photo mein text hai to use padhne ki koshish karo.
+
+Agar tumhe photo mein koi information clearly
+dikhai nahi deti, to guess mat karo.
+
+User memory:
+{memory_context}
 
 User ka question:
-
-{message if message else "Is photo ko describe karo."}
+{user_question}
 """
 
         contents = [
@@ -203,13 +426,46 @@ User ka question:
 
         if response and response.text:
 
-            return response.text
+            return response.text.strip()
 
-        return "Dost, photo ke baare me answer nahi mil saka."
+        return (
+            "Dost, photo ke baare mein answer nahi mil saka."
+        )
 
 
     except Exception as e:
 
         print("Gemini Image Error:", e)
 
-        return f"Image AI Error: {str(e)}"
+        error_text = str(e)
+
+        upper_error = error_text.upper()
+
+        if (
+            "503" in upper_error
+            or "UNAVAILABLE" in upper_error
+        ):
+
+            return (
+                "Dost, image AI server abhi busy hai 😅. "
+                "Thodi der baad dobara try karo."
+            )
+
+        if (
+            "429" in upper_error
+            or "RESOURCE_EXHAUSTED" in upper_error
+        ):
+
+            return (
+                "Dost, image AI ki request limit "
+                "temporarily full hai. Baad mein try karo."
+            )
+
+        if "TIMEOUT" in upper_error:
+
+            return (
+                "Dost, photo process hone mein "
+                "zyada time lag gaya. Dobara try karo."
+            )
+
+        return f"Image AI Error: {error_text}"

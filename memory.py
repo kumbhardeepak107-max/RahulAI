@@ -11,7 +11,6 @@ def load_memory():
     try:
         with open(MEMORY_FILE, "r", encoding="utf-8") as file:
             return json.load(file)
-
     except Exception:
         return {}
 
@@ -22,10 +21,34 @@ def save_memory(key, value):
     memory[key] = value
 
     with open(MEMORY_FILE, "w", encoding="utf-8") as file:
-        json.dump(memory, file, ensure_ascii=False, indent=4)
+        json.dump(
+            memory,
+            file,
+            ensure_ascii=False,
+            indent=4
+        )
 
 
 def get_memory(key):
     memory = load_memory()
 
     return memory.get(key)
+
+
+def delete_memory(key):
+    memory = load_memory()
+
+    if key in memory:
+        del memory[key]
+
+        with open(MEMORY_FILE, "w", encoding="utf-8") as file:
+            json.dump(
+                memory,
+                file,
+                ensure_ascii=False,
+                indent=4
+            )
+
+
+def get_all_memory():
+    return load_memory()
